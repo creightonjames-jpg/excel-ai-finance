@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude + Excel for Finance</title>
+<meta name="description" content="A self-paced course on using Claude with Excel for financial analysis, modeling, and reporting.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231F6B4F'/%3E%3Ctext x='16' y='21.5' font-family='Arial' font-weight='800' font-size='14' text-anchor='middle' fill='white'%3Efx%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="app.css">
+<script>
+  try { var t = localStorage.getItem("theme"); if (t === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+</script>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="screen-loading" class="loading">Loading your course&hellip;</div>
+
+<!-- Sign in -->
+<div id="screen-signin" class="auth" hidden>
+  <form class="auth-card" id="signinForm" novalidate>
+    <div class="brandmark"><i>fx</i>Claude + Excel for Finance</div>
+    <div style="display:grid;gap:6px">
+      <h1>Sign in</h1>
+      <p>Use the email and password from your invitation.</p>
+    </div>
+    <label class="field"><span>Email</span><input type="email" id="siEmail" autocomplete="username" required></label>
+    <label class="field"><span>Password</span><input type="password" id="siPass" autocomplete="current-password" required></label>
+    <div id="siMsg" class="msg no" hidden></div>
+    <button class="btn primary" type="submit" id="siBtn" style="justify-content:center">Sign in</button>
+    <div class="auth-foot"><span>Forgot your password? Ask the person who invited you to reset it.</span></div>
+  </form>
+</div>
+
+<!-- Set / change password -->
+<div id="screen-password" class="auth" hidden>
+  <form class="auth-card" id="pwForm" novalidate>
+    <div class="brandmark"><i>fx</i>Claude + Excel for Finance</div>
+    <div style="display:grid;gap:6px">
+      <h1 id="pwTitle">Choose your password</h1>
+      <p id="pwIntro">Welcome! Replace your starter password with one only you know.</p>
+    </div>
+    <label class="field"><span>New password</span><input type="password" id="pw1" autocomplete="new-password" required></label>
+    <label class="field"><span>Type it again</span><input type="password" id="pw2" autocomplete="new-password" required></label>
+    <ul class="rules" id="pwRules">
+      <li data-r="len">At least 10 characters</li>
+      <li data-r="mix">At least one letter and one number</li>
+      <li data-r="same">Both entries match</li>
+    </ul>
+    <div id="pwMsg" class="msg no" hidden></div>
+    <div class="row">
+      <button class="btn primary" type="submit" id="pwBtn">Save password</button>
+      <button class="btn ghost" type="button" id="pwCancel" hidden>Cancel</button>
+      <button class="btn ghost" type="button" id="pwSignout">Sign out</button>
+    </div>
+  </form>
+</div>
+
+<!-- App -->
+<div id="screen-app" hidden>
+  <header class="top">
+    <div class="top-in">
+      <button class="btn ghost small menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="side">Menu</button>
+      <a class="brandmark" href="#home" style="text-decoration:none;color:inherit"><i>fx</i><span>Claude + Excel for Finance</span></a>
+      <div class="grow"></div>
+      <div class="pbar" aria-live="polite"><span class="lbl" id="pLabel">0 of 7 done</span><span class="track"><span class="fill" id="pFill"></span></span></div>
+      <button class="btn ghost small" id="themeBtn" type="button" aria-label="Switch to dark mode">Dark</button>
+      <div class="acct">
+        <button class="avatar" id="acctBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">J</button>
+        <div class="acct-menu" id="acctMenu" hidden>
+          <div class="who"><strong id="whoName"></strong><span id="whoEmail"></span></div>
+          <a href="#admin" id="adminLink" hidden>Admin: manage learners</a>
+          <button type="button" id="changePwBtn">Change password</button>
+          <button type="button" id="signoutBtn">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="shell">
+    <aside class="side" id="side" aria-label="Course navigation">
+      <div><h4>Course</h4><nav class="nav" id="navCourse"></nav></div>
+      <div><h4>Toolkit</h4><nav class="nav" id="navTools"></nav></div>
+      <div id="navAdminWrap" hidden><h4>Admin</h4><nav class="nav"><a href="#admin" data-nav="admin"><span class="dot"><span>&#9881;</span></span>Manage learners</a></nav></div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+    <main id="content"></main>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
