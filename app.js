@@ -50,7 +50,7 @@ $("#themeBtn").addEventListener("click", () => setTheme(document.documentElement
 /* ---------------- state ---------------- */
 let ME = null;        // { uid, name, email, role }
 let DATA = null;      // course data
-let P = { done: {}, quiz: {}, check: {}, finalScore: null };
+let P = { done: {}, step: {}, quiz: {}, check: {}, finalScore: null, toured: false };
 let certName = "";
 let saveTimer = null, booted = false, pwMode = "first";
 
@@ -76,7 +76,7 @@ async function enter(user) {
     if (my !== seq) return;
     DATA = r.data;
     const d = snap.exists() ? snap.data() : {};
-    P = Object.assign({ done: {}, quiz: {}, check: {}, finalScore: null }, d.progress || {});
+    P = Object.assign({ done: {}, step: {}, quiz: {}, check: {}, finalScore: null, toured: false }, d.progress || {});
     certName = d.certName || ME.name || "";
     if (booted) { show("screen-app"); route(); } else boot(r.html);
   } catch (e) {
@@ -162,43 +162,182 @@ function boot(html) {
 
   $("#whoName").textContent = ME.name || ""; $("#whoEmail").textContent = ME.email || "";
   acctBtn.textContent = (ME.name || ME.email || "?").trim().charAt(0).toUpperCase();
-  const isAdmin = ME.role === "admin";
-  $("#adminLink").hidden = !isAdmin; $("#navAdminWrap").hidden = !isAdmin;
-  $$("[data-firstname]").forEach((n) => (n.textContent = (ME.name || "there").split(" ")[0]));
+  $("#adminLink").hidden = ME.role !== "admin";
+  $$("[data-firstname]").forEach((n) => (n.textContent = firstName()));
 
-  buildNav(); buildSyllabus(); buildVideos(); buildLibrary(); buildPrompts(); buildQuizzes(); buildFinish(); buildChecklist(); buildCert(); wireDownloads();
+  buildVideos(); buildLibrary(); buildPrompts(); buildQuizzes(); buildChecklist(); buildCert(); wireDownloads();
+  buildResources(); buildPlayers(); buildNav();
   refreshProgress();
   show("screen-app");
   route();
+  if (!P.toured) openTour();
 }
 
 const MODS = () => DATA.mods;
-const TOOLS = [{ id: "library", name: "Prompt Library", ic: "✎" }, { id: "checklist", name: "Before you send it", ic: "✓" }, { id: "resources", name: "Videos and links", ic: "▶" }, { id: "certificate", name: "Final check + certificate", ic: "★" }];
+const firstName = () => (ME.name || "there").trim().split(" ")[0];
+const modNum = (id) => MODS().findIndex((m) => m.id === id) + 1;
+const RES_VIEWS = ["resources", "library", "checklist", "videos", "certificate"];
 
+/* sidebar: Home, the seven modules with their status, then Resources */
 function buildNav() {
   const nc = $("#navCourse"); nc.innerHTML = "";
   nc.append(el("a", { href: "#home", "data-nav": "home" }, [el("span", { class: "dot" }, [el("span", { text: "⌂" })]), "Home"]));
-  MODS().forEach((m, i) => nc.append(el("a", { href: "#" + m.id, "data-nav": m.id, "data-mod": m.id }, [el("span", { class: "dot" }, [el("span", { text: String(i + 1) })]), m.name])));
-  const nt = $("#navTools"); nt.innerHTML = "";
-  TOOLS.forEach((t) => nt.append(el("a", { href: "#" + t.id, "data-nav": t.id }, [el("span", { class: "dot" }, [el("span", { text: t.ic })]), t.name])));
+  MODS().forEach((m, i) => nc.append(el("a", { href: "#" + m.id, "data-nav": m.id, "data-mod": m.id }, [
+    el("span", { class: "dot" }, [el("span", { text: String(i + 1) })]),
+    el("span", {}, [m.name, el("span", { class: "sub", "data-sub": m.id })])
+  ])));
   $$(".nav a").forEach((a) => a.addEventListener("click", () => setMenu(false)));
 }
-function buildSyllabus() {
-  const s = $("[data-syllabus]"); if (!s) return;
-  MODS().forEach((m, i) => s.append(el("a", { href: "#" + m.id, "data-mod": m.id }, [el("span", { class: "n", text: "M" + (i + 1) }), el("span", { class: "t", text: m.name }), el("span", { class: "m", text: m.min + " min" })])));
+function nextMod() { return MODS().find((m) => !P.done[m.id]); }
+function modStatus(m) {
+  if (P.done[m.id]) return "Done";
+  const cur = nextMod();
+  if (cur && cur.id === m.id) return (P.step[m.id] || 0) > 0 ? "In progress" : "Up next";
+  return (P.step[m.id] || 0) > 0 ? "In progress" : m.min + " min";
 }
 function refreshProgress() {
   const n = MODS().filter((m) => P.done[m.id]).length;
   $("#pLabel").textContent = `${n} of 7 done`; $("#pFill").style.width = (n / 7 * 100) + "%";
   $$("[data-mod]").forEach((a) => a.classList.toggle("done", !!P.done[a.dataset.mod]));
-  const next = MODS().find((m) => !P.done[m.id]);
-  const c = $("[data-continue]");
+  $$("[data-sub]").forEach((s) => (s.textContent = modStatus(MODS().find((m) => m.id === s.dataset.sub))));
+
+  // home: progress ring + one clear next step
+  const ring = $("[data-ring]");
+  if (ring) { ring.style.setProperty("--p", Math.round(n / 7 * 100)); $("[data-ring-text]").innerHTML = `${n}/7<small>modules</small>`; }
+  const next = nextMod(), c = $("[data-continue]");
   if (c) {
-    if (n === 0) { c.textContent = "Start Module 1"; c.href = "#m1"; }
-    else if (next) { c.textContent = `Continue: Module ${MODS().indexOf(next) + 1}`; c.href = "#" + next.id; }
-    else { c.textContent = "Take the final check"; c.href = "#certificate"; }
+    if (next) {
+      const i = modNum(next.id), s = P.step[next.id] || 0, total = PLAYERS[next.id] ? PLAYERS[next.id].n : 0, started = s > 0;
+      $("[data-next-eyebrow]").textContent = n === 0 && !started ? "Start here" : started ? "Pick up where you left off" : "Next up";
+      $("[data-next-title]").textContent = `Module ${i}: ${next.name}`;
+      $("[data-next-meta]").textContent = `${next.min} minutes` + (started && total ? ` · step ${Math.min(s + 1, total)} of ${total}` : "");
+      c.textContent = (started ? "Continue" : n === 0 ? "Start Module 1" : `Start Module ${i}`) + " →";
+      c.href = "#" + next.id;
+    } else {
+      $("[data-next-eyebrow]").textContent = "All seven modules done";
+      $("[data-next-title]").textContent = "Take the final check";
+      $("[data-next-meta]").textContent = "Score 80% or higher to get your certificate.";
+      c.textContent = "Take the final check →"; c.href = "#certificate";
+    }
+  }
+  const list = $("[data-mods]");
+  if (list) {
+    list.innerHTML = "";
+    MODS().forEach((m, i) => list.append(el("a", { class: "mod" + (P.done[m.id] ? " done" : "") + (next && next.id === m.id ? " current" : ""), href: "#" + m.id }, [
+      el("span", { class: "num", text: P.done[m.id] ? "✓" : String(i + 1) }),
+      el("span", { class: "t", text: m.name }),
+      el("span", { class: "s", text: P.done[m.id] ? "Done" : modStatus(m) === "In progress" ? "In progress" : m.min + " min" })
+    ])));
   }
 }
+
+/* ---------------- step-by-step modules ---------------- */
+const PLAYERS = {};
+function buildPlayers() {
+  MODS().forEach((m) => {
+    const sec = $(`[data-view="${m.id}"]`); if (!sec) return;
+    const head = $(".mhead", sec); if (head) head.remove();
+    const steps = [];
+    Array.from(sec.children).forEach((node) => {
+      let kind = null, title = null;
+      if (node.classList.contains("lesson")) { kind = "Learn"; const h = $("h2", node); title = h ? h.textContent.trim() : "Learn"; }
+      else if (node.classList.contains("callout")) { kind = "Learn"; title = "Before you start"; }
+      else if (node.classList.contains("watch")) { if (!node.children.length) { node.remove(); return; } kind = "Watch"; title = "Watch"; }
+      else if (node.classList.contains("tryit")) { kind = "Your turn"; title = "Your turn"; }
+      else if (node.classList.contains("quiz")) { kind = "Check"; title = "Check yourself"; }
+      if (!kind) return;
+      const box = el("div", { class: "stepbox", hidden: "" }, [el("span", { class: "kind", text: kind })]);
+      node.replaceWith(box); box.append(node);
+      steps.push({ kind, title, box });
+    });
+    const i = modNum(m.id), n = steps.length;
+    const count = el("span", { class: "count" });
+    const dots = el("div", { class: "steps-dots" }), labels = el("div", { class: "step-labels", "aria-hidden": "true" });
+    steps.forEach((s, k) => {
+      const b = el("button", { type: "button", "aria-label": `Go to step ${k + 1}: ${s.title}` });
+      b.addEventListener("click", () => go(k)); dots.append(b);
+      labels.append(el("span", { text: s.title }));
+    });
+    const bar = el("div", { class: "stepbar" }, [el("div", { class: "row1" }, [el("span", { class: "mt", text: `Module ${i}: ${m.name}` }), count]), dots, labels]);
+    const backBtn = el("button", { type: "button", class: "btn" }), mid = el("span", { class: "mid" }), nextBtn = el("button", { type: "button", class: "btn primary big" });
+    const pager = el("div", { class: "pager" }, [backBtn, mid, nextBtn]);
+    const nm = MODS()[i]; // next module (undefined after M7)
+    const doneCard = el("div", { class: "card done-card", hidden: "" }, [
+      el("div", { class: "tick", text: "✓" }),
+      el("h1", { text: `Module ${i} complete` }),
+      el("p", { class: "lead", text: "Nice work. Your progress is saved." }),
+      el("div", { class: "actions" }, [
+        nm ? el("a", { class: "btn primary big", href: "#" + nm.id, text: `Start Module ${i + 1} →` }) : el("a", { class: "btn primary big", href: "#certificate", text: "Take the final check →" }),
+        el("a", { class: "btn", href: "#home", text: "Back to home" })
+      ])
+    ]);
+    const redo = el("button", { type: "button", class: "btn ghost small", text: `Review Module ${i} again` });
+    redo.addEventListener("click", () => go(0)); doneCard.append(redo);
+    const player = el("div", { class: "player" }, [bar]);
+    steps.forEach((s) => player.append(s.box));
+    player.append(pager);
+    sec.append(player, doneCard);
+
+    function render() {
+      let s = P.step[m.id] == null ? (P.done[m.id] ? n : 0) : P.step[m.id];
+      const finished = s >= n;
+      player.hidden = finished; doneCard.hidden = !finished;
+      if (finished) return;
+      s = Math.max(0, s);
+      steps.forEach((st, k) => (st.box.hidden = k !== s));
+      count.textContent = `Step ${s + 1} of ${n}`;
+      $$("button", dots).forEach((b, k) => { b.className = k < s ? "done" : k === s ? "on" : ""; if (k === s) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
+      $$("span", labels).forEach((l, k) => (l.className = k === s ? "on" : ""));
+      backBtn.textContent = s > 0 ? "← Back" : "← Home"; backBtn.className = s > 0 ? "btn" : "btn ghost";
+      mid.textContent = s < n - 1 ? "Next: " + steps[s + 1].title : "";
+      nextBtn.textContent = s < n - 1 ? "Next →" : "Finish module";
+    }
+    function go(k) {
+      P.step[m.id] = k;
+      if (k >= n) P.done[m.id] = true;
+      saveProgress(); render(); refreshProgress(); window.scrollTo(0, 0);
+    }
+    backBtn.addEventListener("click", () => { const s = P.step[m.id] || 0; if (s > 0) go(s - 1); else location.hash = "#home"; });
+    nextBtn.addEventListener("click", () => go((P.step[m.id] || 0) + 1));
+    PLAYERS[m.id] = { n, render };
+  });
+}
+
+/* ---------------- resources hub ---------------- */
+function buildResources() {
+  const count = DATA.library.reduce((a, g) => a + g.items.length, 0);
+  const tile = (href, ic, t, d) => el("a", { class: "tile", href }, [el("b", { text: ic }), el("strong", { text: t }), el("span", { text: d })]);
+  const sec = el("section", { "data-view": "resources", class: "view", hidden: "" }, [
+    el("header", { class: "mhead" }, [el("h1", { text: "Resources" }), el("p", { class: "lead", text: "Handy tools you can come back to anytime." })]),
+    el("div", { class: "tiles" }, [
+      tile("#library", "✎", "Prompt library", `${count} copy-ready prompts for everyday finance work`),
+      tile("#checklist", "☑", "Before you send it", "A quick checklist for any AI-assisted work"),
+      tile("#videos", "▶", "Videos and links", "Every course video and the official guides"),
+      tile("#certificate", "★", "Final check and certificate", "Finish all seven modules, then score 80% or higher")
+    ])
+  ]);
+  $("#content").append(sec);
+}
+
+/* ---------------- welcome tour (first visit only) ---------------- */
+let tourAt = 0;
+const TOUR = () => [
+  ["👋", `Welcome, ${firstName()}`, "This course shows you how to use Claude with Excel for everyday finance work. It takes about 90 minutes, and you can stop and pick up anytime."],
+  ["📚", "Seven short modules", "Each module walks you through a few short screens: learn the idea, watch a video, try it yourself, then a quick check. Use Next and Back to move along."],
+  ["💾", "Your progress is saved", "Your place is saved to your account, so you can switch computers or come back later. Finish all seven and pass the final check to get your certificate."]
+];
+function paintTour() {
+  const t = TOUR()[tourAt], last = tourAt === TOUR().length - 1;
+  const body = $("#tourBody"); body.innerHTML = "";
+  body.append(el("div", { class: "big", text: t[0], "aria-hidden": "true" }), el("h1", { id: "tourTitle", text: t[1], style: "font-size:1.5rem" }), el("p", { class: "lead", text: t[2], style: "font-size:1.05rem" }));
+  const d = $("#tourDots"); d.innerHTML = ""; TOUR().forEach((_, i) => d.append(el("i", { class: i === tourAt ? "on" : "" })));
+  $("#tourNext").textContent = last ? "Let's start" : "Next";
+}
+function openTour() { tourAt = 0; paintTour(); $("#tour").hidden = false; setTimeout(() => $("#tourNext").focus(), 50); }
+function closeTour() { $("#tour").hidden = true; P.toured = true; saveProgress(); }
+$("#tourNext").addEventListener("click", () => { if (tourAt < TOUR().length - 1) { tourAt++; paintTour(); } else closeTour(); });
+$("#tourSkip").addEventListener("click", closeTour);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#tour").hidden) closeTour(); });
 
 /* routing */
 function route() {
@@ -207,7 +346,9 @@ function route() {
   if (id === "admin" && ME.role !== "admin") id = "home";
   if (!$(`[data-view="${id}"]`)) id = "home";
   $$("[data-view]").forEach((v) => (v.hidden = v.dataset.view !== id));
-  $$(".nav a").forEach((a) => (a.dataset.nav === id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  const navId = RES_VIEWS.includes(id) ? "resources" : id;
+  $$(".nav a").forEach((a) => (a.dataset.nav === navId ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  if (PLAYERS[id]) PLAYERS[id].render();
   window.scrollTo(0, 0);
   if (id === "admin") renderAdmin();
   if (id === "certificate") refreshCert();
@@ -319,21 +460,6 @@ function renderQuiz(box) {
   box.append(score); upd();
 }
 function buildQuizzes() { $$("[data-quiz]").forEach(renderQuiz); }
-
-/* module completion */
-function buildFinish() {
-  $$("[data-complete]").forEach((box) => {
-    const id = box.dataset.complete, i = MODS().findIndex((m) => m.id === id);
-    const btn = el("button", { type: "button", class: "btn" });
-    const paint = () => { btn.textContent = P.done[id] ? "✓ Completed" : "Mark module complete"; btn.className = "btn" + (P.done[id] ? "" : " primary"); };
-    btn.addEventListener("click", () => { P.done[id] = !P.done[id]; saveProgress(); paint(); refreshProgress(); });
-    paint();
-    const nav = el("div", { class: "row" });
-    if (i > 0) nav.append(el("a", { class: "btn ghost", href: "#" + MODS()[i - 1].id, text: "← Previous" }));
-    nav.append(i < 6 ? el("a", { class: "btn", href: "#" + MODS()[i + 1].id, text: "Next module →" }) : el("a", { class: "btn", href: "#certificate", text: "Final check →" }));
-    box.append(btn, nav);
-  });
-}
 
 /* checklist */
 function buildChecklist() {

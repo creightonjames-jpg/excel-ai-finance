@@ -73,7 +73,7 @@
         <button class="avatar" id="acctBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">J</button>
         <div class="acct-menu" id="acctMenu" hidden>
           <div class="who"><strong id="whoName"></strong><span id="whoEmail"></span></div>
-          <a href="#admin" id="adminLink" hidden>Admin: manage learners</a>
+          <a href="#admin" id="adminLink" hidden>Manage learners (admin)</a>
           <button type="button" id="changePwBtn">Change password</button>
           <button type="button" id="signoutBtn">Sign out</button>
         </div>
@@ -82,12 +82,20 @@
   </header>
   <div class="shell">
     <aside class="side" id="side" aria-label="Course navigation">
-      <div><h4>Course</h4><nav class="nav" id="navCourse"></nav></div>
-      <div><h4>Toolkit</h4><nav class="nav" id="navTools"></nav></div>
-      <div id="navAdminWrap" hidden><h4>Admin</h4><nav class="nav"><a href="#admin" data-nav="admin"><span class="dot"><span>&#9881;</span></span>Manage learners</a></nav></div>
+      <nav class="nav" id="navCourse"></nav>
+      <nav class="nav res"><a href="#resources" data-nav="resources"><span class="dot"><span>&#9733;</span></span>Resources</a></nav>
     </aside>
     <div class="scrim" id="scrim" hidden></div>
     <main id="content"></main>
+  </div>
+</div>
+
+<!-- Welcome tour (first sign-in) -->
+<div class="tour-wrap" id="tour" hidden>
+  <div class="tour" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div id="tourBody"></div>
+    <div class="dots" id="tourDots"></div>
+    <div class="row"><button class="btn ghost" id="tourSkip" type="button">Skip</button><button class="btn primary" id="tourNext" type="button">Next</button></div>
   </div>
 </div>
 
